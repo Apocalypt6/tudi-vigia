@@ -1,0 +1,27 @@
+name: Latido
+
+# GitHub desactiva los workflows programados de un repo público tras 60 días sin actividad.
+# Un commit mensual con GITHUB_TOKEN cuenta como actividad.
+
+on:
+  schedule:
+    - cron: "17 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  latido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Registrar latido
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > ultimo-latido.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ultimo-latido.txt
+          git commit -m "latido mensual"
+          git push

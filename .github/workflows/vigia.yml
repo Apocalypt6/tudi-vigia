@@ -1,0 +1,53 @@
+name: Vigia
+
+# Solo URLs públicas. Si algo falla, el job falla y GitHub avisa al dueño (correo y GitHub Mobile).
+# No abre issues: el repo es público y una caída no debe quedar a la vista.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: vigia
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vigia:
+    name: Revisar sitios y API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Revisar
+        shell: bash
+        run: |
+          set -u
+          CHEQUEOS=(
+            "https://tudiapp.co/|200"
+            "https://tudiapp.co/panel/|200"
+            "https://appdeuna.com/healthz|200"
+            "https://appdeuna.com/readyz|200"
+            "https://appdeuna.com/api/panel|401"
+          )
+          FALLOS=0
+          for par in "${CHEQUEOS[@]}"; do
+            url="${par%|*}"; esperado="${par#*|}"
+            codigo=""
+            for intento in 1 2 3; do # 1 intento + 2 reintentos
+              codigo="$(curl -sS -o /dev/null --connect-timeout 10 --max-time 20 \
+                -A "tudi-vigia/1.0 (+github-actions)" -w '%{http_code}' "$url" 2>/dev/null || true)"
+              [ "$codigo" = "$esperado" ] && break
+              [ "$intento" -lt 3 ] && sleep 15
+            done
+            if [ "$codigo" = "$esperado" ]; then
+              echo "OK    $url -> $codigo"
+            else
+              echo "::error::FALLA $url -> $codigo (esperado $esperado)"
+              FALLOS=$((FALLOS + 1))
+            fi
+          done
+          [ "$FALLOS" -eq 0 ] || exit 1
+          echo "Todo en orden."
